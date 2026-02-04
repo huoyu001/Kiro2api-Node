@@ -2,3 +2,6 @@ node_modules/
 data/accounts.json
 data/request_logs.json
 .env
+/.idea/
+/logs/
+/nul

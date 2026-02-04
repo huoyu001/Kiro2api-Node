@@ -5,8 +5,16 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "start": "start.bat",
+    "dev": "dev.bat",
+    "pm2:start": "cross-env PM2_NO_DAEMON= pm2 start ecosystem.config.cjs",
+    "pm2:stop": "pm2 stop kiro2api-node",
+    "pm2:restart": "pm2 restart kiro2api-node",
+    "pm2:reload": "pm2 reload kiro2api-node",
+    "pm2:delete": "pm2 delete kiro2api-node",
+    "pm2:logs": "pm2 logs kiro2api-node",
+    "pm2:monit": "pm2 monit",
+    "pm2:status": "pm2 status"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -15,5 +23,8 @@
     "node-fetch": "^3.3.2",
     "tiktoken": "^1.0.22",
     "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0"
   }
 }
