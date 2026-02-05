@@ -72,6 +72,12 @@ docker run -d -p 8080:8080 \
   kiro2api-node
 ```
 
+**数据持久化说明：**
+- 所有数据（账号、设置、请求日志）存储在 SQLite 数据库中
+- 通过 `-v ./data:/app/data` 挂载数据目录，确保数据持久化
+- 数据库文件：`data/kiro.db`（自动创建）
+- 首次启动会自动迁移旧的 JSON 文件到数据库
+
 服务默认运行在 `http://localhost:8080`
 
 ---
@@ -87,6 +93,46 @@ docker run -d -p 8080:8080 \
 | `REGION` | `us-east-1` | AWS 区域 |
 | `KIRO_VERSION` | `0.8.0` | Kiro 版本号 |
 | `PROXY_URL` | - | HTTP 代理地址（可选） |
+
+---
+
+## 数据存储
+
+### 存储方式
+项目使用 **SQLite 数据库**存储所有数据，提供更好的性能和可靠性：
+
+- **数据库文件**：`data/kiro.db`
+- **日志模式**：WAL（Write-Ahead Log）提升并发性能
+- **自动迁移**：首次启动自动检测并迁移旧的 JSON 文件
+
+### 数据结构
+
+| 表名 | 说明 |
+|------|------|
+| `accounts` | 账号信息（凭证、状态、配额） |
+| `settings` | 系统设置（管理密钥） |
+| `api_keys` | API 密钥列表 |
+| `request_logs` | 请求日志记录 |
+
+### 数据迁移
+
+从 JSON 文件自动迁移到数据库：
+- `accounts.json` → `accounts` 表
+- `settings.json` → `settings` + `api_keys` 表
+- `request_logs.json` → `request_logs` 表
+
+迁移后自动备份原文件（`.backup.{timestamp}`）并删除原文件，防止重复迁移。
+
+### 备份建议
+
+定期备份数据库文件：
+```bash
+# 备份数据库
+cp data/kiro.db data/kiro.db.backup.$(date +%Y%m%d)
+
+# Docker 环境
+docker cp kiro2api-node:/app/data/kiro.db ./backup/
+```
 
 ---
 
@@ -210,15 +256,18 @@ curl -X POST http://localhost:8080/v1/messages \
 kiro-node/
 ├── src/
 │   ├── index.js          # 入口文件
+│   ├── db.js             # 数据库管理
 │   ├── kiro-client.js    # Kiro API 客户端
 │   ├── pool.js           # 账号池管理
 │   ├── settings.js       # 设置管理
 │   ├── token.js          # Token 管理
 │   ├── usage.js          # 用量统计
 │   ├── event-parser.js   # 事件解析器
+│   ├── migrations/       # 数据迁移脚本
 │   ├── public/           # 静态资源
 │   └── routes/           # 路由模块
 ├── data/                 # 数据存储
+│   └── kiro.db           # SQLite 数据库（自动创建）
 ├── Dockerfile
 ├── docker-compose.yml
 └── package.json

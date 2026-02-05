@@ -4,8 +4,9 @@ import path from 'path';
 const SETTINGS_FILE = 'settings.json';
 
 export class SettingsManager {
-  constructor(dataDir) {
+  constructor(dataDir, db = null) {
     this.dataDir = dataDir;
+    this.db = db;
     this.settings = {
       adminKey: '',
       apiKeys: new Set()
@@ -15,20 +16,22 @@ export class SettingsManager {
   async init(defaultAdminKey, defaultApiKey) {
     try {
       await fs.mkdir(this.dataDir, { recursive: true });
-      const filePath = path.join(this.dataDir, SETTINGS_FILE);
-      
-      try {
-        const content = await fs.readFile(filePath, 'utf-8');
-        const loaded = JSON.parse(content);
-        this.settings.adminKey = loaded.adminKey;
-        this.settings.apiKeys = new Set(loaded.apiKeys || []);
-        console.log('✓ 从文件加载了系统设置');
-      } catch {
-        // 文件不存在，使用默认值
-        this.settings.adminKey = defaultAdminKey;
-        this.settings.apiKeys.add(defaultApiKey);
-        await this.save();
-        console.log('✓ 使用默认值初始化系统设置');
+
+      // 从数据库加载设置
+      if (this.db) {
+        const loaded = this.db.getSettings();
+        if (loaded.adminKey) {
+          this.settings.adminKey = loaded.adminKey;
+          this.settings.apiKeys = new Set(loaded.apiKeys || []);
+          console.log('✓ 从数据库加载了系统设置');
+        } else {
+          // 数据库中没有设置，使用默认值
+          this.settings.adminKey = defaultAdminKey;
+          this.settings.apiKeys.add(defaultApiKey);
+          this.db.updateAdminKey(defaultAdminKey);
+          this.db.addApiKey(defaultApiKey);
+          console.log('✓ 使用默认值初始化系统设置');
+        }
       }
     } catch (e) {
       console.error('初始化设置失败:', e);
@@ -36,12 +39,7 @@ export class SettingsManager {
   }
 
   async save() {
-    const filePath = path.join(this.dataDir, SETTINGS_FILE);
-    const data = {
-      adminKey: this.settings.adminKey,
-      apiKeys: Array.from(this.settings.apiKeys)
-    };
-    await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+    // 保留空实现以向后兼容，实际数据操作直接写入数据库
   }
 
   verifyAdminKey(key) {
@@ -54,20 +52,26 @@ export class SettingsManager {
 
   async changeAdminKey(newKey) {
     this.settings.adminKey = newKey;
-    await this.save();
+    if (this.db) {
+      this.db.updateAdminKey(newKey);
+    }
   }
 
   async addApiKey(key) {
     if (this.settings.apiKeys.has(key)) return false;
     this.settings.apiKeys.add(key);
-    await this.save();
+    if (this.db) {
+      return this.db.addApiKey(key) > 0;
+    }
     return true;
   }
 
   async removeApiKey(key) {
     if (this.settings.apiKeys.size <= 1) return false;
     const removed = this.settings.apiKeys.delete(key);
-    if (removed) await this.save();
+    if (removed && this.db) {
+      return this.db.removeApiKey(key);
+    }
     return removed;
   }
 

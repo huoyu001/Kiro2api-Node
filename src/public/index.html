@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kiro2api-Node 管理面板</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
@@ -97,6 +98,7 @@
                     <nav class="flex space-x-8 px-6">
                         <button onclick="switchTab('accounts')" class="tab-btn border-b-2 border-blue-500 text-blue-600 py-4 px-1 text-sm font-medium" data-tab="accounts">账号管理</button>
                         <button onclick="switchTab('logs')" class="tab-btn border-b-2 border-transparent text-gray-500 hover:text-gray-700 py-4 px-1 text-sm font-medium" data-tab="logs">请求记录</button>
+                        <button onclick="switchTab('analytics')" class="tab-btn border-b-2 border-transparent text-gray-500 hover:text-gray-700 py-4 px-1 text-sm font-medium" data-tab="analytics">数据分析</button>
                         <button onclick="switchTab('settings')" class="tab-btn border-b-2 border-transparent text-gray-500 hover:text-gray-700 py-4 px-1 text-sm font-medium" data-tab="settings">设置</button>
                     </nav>
                 </div>
@@ -133,20 +135,82 @@
                 <!-- 请求记录 -->
                 <div id="tab-logs" class="p-6 tab-content hidden">
                     <div class="flex justify-between items-center mb-6">
-                        <div class="flex gap-3">
+                        <h2 class="text-xl font-semibold text-gray-900">请求记录</h2>
+                        <div class="flex gap-3 items-center">
                             <button onclick="loadLogs()" class="border border-gray-200 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm font-medium text-gray-600 transition">刷新</button>
-                            <button onclick="clearLogs()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center">
-                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                清空记录
-                            </button>
+                            <label class="flex items-center cursor-pointer">
+                                <input type="checkbox" id="autoRefreshToggle" onchange="toggleAutoRefresh()" class="sr-only peer">
+                                <div class="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                <span class="ml-3 text-sm font-medium text-gray-700">自动刷新</span>
+                            </label>
                         </div>
-                        <label class="flex items-center cursor-pointer">
-                            <input type="checkbox" id="autoRefreshToggle" onchange="toggleAutoRefresh()" class="sr-only peer">
-                            <div class="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                            <span class="ml-3 text-sm font-medium text-gray-700">自动刷新</span>
-                        </label>
                     </div>
                     <div id="logs-table" class="overflow-x-auto"></div>
+                    
+                    <!-- 分页器 -->
+                    <div id="logs-pagination" class="flex justify-between items-center mt-4 pt-4 border-t border-gray-200">
+                        <div class="flex items-center gap-4">
+                            <span id="totalRecords" class="text-sm text-gray-600">共 0 条记录</span>
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm text-gray-600">每页显示：</span>
+                                <select id="pageSizeSelect" onchange="changePageSize()" class="border border-gray-300 rounded px-2 py-1 text-sm">
+                                    <option value="20">20</option>
+                                    <option value="50">50</option>
+                                    <option value="100">100</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button id="prevPageBtn" onclick="changePage(-1)" class="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">上一页</button>
+                            <span id="pageInfo" class="text-sm text-gray-600">第 1 页 / 共 1 页</span>
+                            <button id="nextPageBtn" onclick="changePage(1)" class="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">下一页</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 数据分析 -->
+                <div id="tab-analytics" class="p-6 tab-content hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-xl font-semibold text-gray-900">数据分析</h2>
+                        <div class="flex gap-2">
+                            <button onclick="loadAnalytics('24h')" class="time-range-btn bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition" data-range="24h">24小时</button>
+                            <button onclick="loadAnalytics('7d')" class="time-range-btn bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition" data-range="7d">7天</button>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- 按模型统计（堆叠面积图） -->
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">按模型统计</h3>
+                            <div class="h-80">
+                                <canvas id="modelChart"></canvas>
+                            </div>
+                        </div>
+                        
+                        <!-- 成功率（环形图） -->
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">请求成功率</h3>
+                            <div class="h-80">
+                                <canvas id="successRateChart"></canvas>
+                            </div>
+                        </div>
+                        
+                        <!-- Token 消耗趋势（双轴折线图） -->
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Token 消耗趋势</h3>
+                            <div class="h-80">
+                                <canvas id="tokenTrendsChart"></canvas>
+                            </div>
+                        </div>
+                        
+                        <!-- Top 10 账号（水平柱状图） -->
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Top 10 账号</h3>
+                            <div class="h-80">
+                                <canvas id="topAccountsChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- 设置 -->
@@ -450,15 +514,11 @@
             } catch (e) { showToast('批量删除失败: ' + e.message, 'error'); }
         }
 
-        async function clearLogs() {
-            if (!confirm('确定清空所有请求记录？')) return;
-            try {
-                await fetchApi('/api/logs', { method: 'DELETE' });
-                loadLogs();
-                loadStatus();
-                showToast('记录已清空', 'success');
-            } catch (e) { showToast('清空失败: ' + e.message, 'error'); }
-        }
+        // 分页状态
+        let currentPage = 1;
+        let currentPageSize = 20;
+        let totalPages = 1;
+        let totalRecords = 0;
 
         function formatStatus(status) {
             const styles = { active: 'bg-green-100 text-green-700', cooldown: 'bg-yellow-100 text-yellow-700', invalid: 'bg-red-100 text-red-700', disabled: 'bg-gray-100 text-gray-700' };
@@ -487,9 +547,19 @@
 
         async function loadLogs() {
             try {
-                const logs = await fetchApi('/api/logs');
+                const response = await fetchApi(`/api/logs?page=${currentPage}&pageSize=${currentPageSize}`);
+                const logs = response.data || [];
+                const pagination = response.pagination || {};
+                
+                totalPages = pagination.totalPages || 1;
+                totalRecords = pagination.total || 0;
+                
                 const container = document.getElementById('logs-table');
-                if (!logs || logs.length === 0) { container.innerHTML = '<div class="text-center py-12 text-gray-500">暂无请求记录</div>'; return; }
+                if (!logs || logs.length === 0) { 
+                    container.innerHTML = '<div class="text-center py-12 text-gray-500">暂无请求记录</div>'; 
+                    updatePaginationUI();
+                    return; 
+                }
                 container.innerHTML = `
                     <table class="w-full">
                         <thead><tr class="bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -507,7 +577,29 @@
                             </tr>`).join('')}
                         </tbody>
                     </table>`;
-            } catch (e) { console.error(e); }
+                updatePaginationUI();
+            } catch (e) { showToast('加载失败: ' + e.message, 'error'); }
+        }
+
+        function updatePaginationUI() {
+            document.getElementById('pageInfo').textContent = `第 ${currentPage} 页 / 共 ${totalPages} 页`;
+            document.getElementById('totalRecords').textContent = `共 ${totalRecords} 条记录`;
+            document.getElementById('prevPageBtn').disabled = currentPage <= 1;
+            document.getElementById('nextPageBtn').disabled = currentPage >= totalPages;
+            document.getElementById('pageSizeSelect').value = currentPageSize;
+        }
+
+        function changePage(delta) {
+            const newPage = currentPage + delta;
+            if (newPage < 1 || newPage > totalPages) return;
+            currentPage = newPage;
+            loadLogs();
+        }
+
+        function changePageSize() {
+            currentPageSize = parseInt(document.getElementById('pageSizeSelect').value);
+            currentPage = 1; // 重置到第一页
+            loadLogs();
         }
 
         async function loadStrategy() {
@@ -538,6 +630,7 @@
                     autoRefreshInterval = null;
                 }
             }
+            if (tab === 'analytics') { loadAnalytics('24h'); }
             if (tab === 'settings') { loadApiKeys(); document.getElementById('baseUrl').textContent = location.origin; }
         }
 
@@ -625,6 +718,280 @@
         }
 
         async function refresh() { loadStatus(); loadAccounts(); loadStrategy(); }
+
+        // ========== 数据分析相关函数 ==========
+        let chartInstances = {};
+
+        async function loadAnalytics(timeRange = '24h') {
+            // 更新时间范围按钮样式
+            document.querySelectorAll('.time-range-btn').forEach(btn => {
+                if (btn.dataset.range === timeRange) {
+                    btn.classList.remove('bg-gray-100', 'hover:bg-gray-200', 'text-gray-700');
+                    btn.classList.add('bg-blue-500', 'text-white');
+                } else {
+                    btn.classList.remove('bg-blue-500', 'text-white');
+                    btn.classList.add('bg-gray-100', 'hover:bg-gray-200', 'text-gray-700');
+                }
+            });
+
+            try {
+                // 并行获取所有统计数据
+                const [timeseriesData, modelData, accountData, successRateData, tokenData] = await Promise.all([
+                    fetchApi(`/api/stats/timeseries?range=${timeRange}`),
+                    fetchApi(`/api/stats/by-model?range=${timeRange}`),
+                    fetchApi(`/api/stats/by-account?limit=10&range=${timeRange}`),
+                    fetchApi(`/api/stats/success-rate?range=${timeRange}`),
+                    fetchApi(`/api/stats/tokens?range=${timeRange}`)
+                ]);
+
+                renderModelChart(timeseriesData.data);
+                renderSuccessRateChart(successRateData.data);
+                renderTokenTrendsChart(tokenData.data);
+                renderTopAccountsChart(accountData.data);
+            } catch (e) {
+                showToast('加载数据失败: ' + e.message, 'error');
+            }
+        }
+
+        function formatTimeLabel(timeStr) {
+            // 格式化时间标签
+            // 24小时格式: "2026-02-04 10:00:00" -> "10:00"
+            // 7天格式: "2026-02-04" -> "02-04"
+            if (timeStr.includes(':')) {
+                // 24小时格式，提取小时
+                const hour = timeStr.split(' ')[1].split(':')[0];
+                return `${parseInt(hour)}:00`;
+            } else {
+                // 7天格式，提取月-日
+                const parts = timeStr.split('-');
+                return `${parts[1]}-${parts[2]}`;
+            }
+        }
+
+        function renderModelChart(data) {
+            const ctx = document.getElementById('modelChart');
+            if (!ctx) return;
+
+            // 销毁旧图表
+            if (chartInstances.modelChart) {
+                chartInstances.modelChart.destroy();
+            }
+
+            // 按模型分组数据
+            const modelMap = {};
+            data.forEach(item => {
+                if (!modelMap[item.model]) {
+                    modelMap[item.model] = [];
+                }
+                modelMap[item.model].push({ hour: item.hour, count: item.count });
+            });
+
+            // 获取所有时间点
+            const hours = [...new Set(data.map(d => d.hour))].sort();
+            
+            // 格式化时间标签
+            const formattedLabels = hours.map(h => formatTimeLabel(h));
+            
+            // 生成数据集
+            const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+            const datasets = Object.keys(modelMap).map((model, idx) => {
+                const modelData = hours.map(hour => {
+                    const found = modelMap[model].find(d => d.hour === hour);
+                    return found ? found.count : 0;
+                });
+                return {
+                    label: model,
+                    data: modelData,
+                    backgroundColor: colors[idx % colors.length] + '40',
+                    borderColor: colors[idx % colors.length],
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                };
+            });
+
+            chartInstances.modelChart = new Chart(ctx, {
+                type: 'line',
+                data: { labels: formattedLabels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    scales: {
+                        x: { stacked: true, grid: { display: false } },
+                        y: { stacked: true, beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        function renderSuccessRateChart(data) {
+            const ctx = document.getElementById('successRateChart');
+            if (!ctx) return;
+
+            if (chartInstances.successRateChart) {
+                chartInstances.successRateChart.destroy();
+            }
+
+            const successCount = data.successCount || 0;
+            const failureCount = data.failureCount || 0;
+            const total = successCount + failureCount;
+
+            chartInstances.successRateChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['成功', '失败'],
+                    datasets: [{
+                        data: [successCount, failureCount],
+                        backgroundColor: ['#10b981', '#ef4444'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => {
+                                    const value = context.parsed;
+                                    const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                    return `${context.label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderTokenTrendsChart(data) {
+            const ctx = document.getElementById('tokenTrendsChart');
+            if (!ctx) return;
+
+            if (chartInstances.tokenTrendsChart) {
+                chartInstances.tokenTrendsChart.destroy();
+            }
+
+            const hours = data.map(d => d.hour);
+            const formattedLabels = hours.map(h => formatTimeLabel(h));
+            const inputTokens = data.map(d => d.inputTokens || 0);
+            const outputTokens = data.map(d => d.outputTokens || 0);
+
+            chartInstances.tokenTrendsChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: formattedLabels,
+                    datasets: [
+                        {
+                            label: '输入 Tokens',
+                            data: inputTokens,
+                            borderColor: '#3b82f6',
+                            backgroundColor: '#3b82f640',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: '输出 Tokens',
+                            data: outputTokens,
+                            borderColor: '#10b981',
+                            backgroundColor: '#10b98140',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4,
+                            yAxisID: 'y'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: (context) => {
+                                    const value = context.parsed.y;
+                                    return `${context.dataset.label}: ${formatNumber(value)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: {
+                            type: 'linear',
+                            position: 'left',
+                            beginAtZero: true,
+                            ticks: {
+                                callback: (value) => formatNumber(value)
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function formatNumber(num) {
+            if (num >= 1000000) {
+                return (num / 1000000).toFixed(1) + 'M';
+            } else if (num >= 1000) {
+                return (num / 1000).toFixed(1) + 'K';
+            }
+            return num.toString();
+        }
+
+        function renderTopAccountsChart(data) {
+            const ctx = document.getElementById('topAccountsChart');
+            if (!ctx) return;
+
+            if (chartInstances.topAccountsChart) {
+                chartInstances.topAccountsChart.destroy();
+            }
+
+            const accounts = data.map(d => d.accountName);
+            const counts = data.map(d => d.count);
+
+            chartInstances.topAccountsChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: accounts,
+                    datasets: [{
+                        label: '请求次数',
+                        data: counts,
+                        backgroundColor: '#3b82f6',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => `请求次数: ${context.parsed.x}`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { beginAtZero: true, grid: { display: true } },
+                        y: { grid: { display: false } }
+                    }
+                }
+            });
+        }
 
         (async () => {
             if (adminKey) {
