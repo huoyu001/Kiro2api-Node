@@ -598,11 +598,11 @@
             catch (e) { showToast('刷新失败: ' + e.message, 'error'); }
         }
 
-        function formatModelDisplay(model, downstreamModel) {
+        function formatModelDisplay(model, upstreamModel) {
             if (!model) return '-';
 
-            // 如果没有下游模型或两者相同，只显示一个
-            if (!downstreamModel || model === downstreamModel) {
+            // 如果没有上游模型或两者相同，只显示一个
+            if (!upstreamModel || model === upstreamModel) {
                 return `<span class="text-gray-700">${model}</span>`;
             }
 
@@ -612,10 +612,10 @@
                     <span class="px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-700 cursor-help border border-blue-200">
                         ${model}
                     </span>
-                    <div class="invisible group-hover:visible absolute z-10 w-48 px-3 py-2 text-xs text-white bg-gray-900 rounded-lg shadow-lg -top-10 left-0 whitespace-normal">
-                        <div class="font-semibold mb-1">实际发送模型：</div>
-                        <div class="font-mono">${downstreamModel}</div>
-                        <div class="absolute w-2 h-2 bg-gray-900 transform rotate-45 -bottom-1 left-4"></div>
+                    <div class="invisible group-hover:visible absolute z-10 w-48 px-3 py-2 text-xs text-white bg-gray-900 rounded-lg shadow-lg left-full ml-2 top-1/2 -translate-y-1/2 whitespace-normal">
+                        <div class="font-semibold mb-1">上游模型（Kiro）：</div>
+                        <div class="font-mono">${upstreamModel}</div>
+                        <div class="absolute w-2 h-2 bg-gray-900 transform rotate-45 -left-1 top-1/2 -translate-y-1/2"></div>
                     </div>
                 </div>
             `;
@@ -652,7 +652,7 @@
                                     <td class="px-4 py-3 text-sm text-gray-600">${new Date(l.timestamp).toLocaleString()}</td>
                                     <td class="px-4 py-3 text-sm text-gray-900">${l.accountName}</td>
                                     <td class="px-4 py-3">${streamTag}</td>
-                                    <td class="px-4 py-3 text-xs text-gray-500">${formatModelDisplay(l.model, l.downstreamModel)}</td>
+                                    <td class="px-4 py-3 text-xs text-gray-500">${formatModelDisplay(l.model, l.upstreamModel)}</td>
                                     <td class="px-4 py-3 text-xs text-gray-600">${l.apiKeyName || '<span class="text-gray-400">--</span>'}</td>
                                     <td class="px-4 py-3 text-sm text-gray-600">${l.inputTokens || 0}</td>
                                     <td class="px-4 py-3 text-sm text-gray-600">${l.outputTokens || 0}</td>

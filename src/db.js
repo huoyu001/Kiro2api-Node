@@ -164,9 +164,18 @@ export class DatabaseManager {
       this.db.exec(`ALTER TABLE request_logs ADD COLUMN stream INTEGER`);
     }
 
-    // 为 request_logs 表添加 downstream_model 字段
-    if (!this._columnExists('request_logs', 'downstream_model')) {
-      this.db.exec(`ALTER TABLE request_logs ADD COLUMN downstream_model TEXT`);
+    // 为 request_logs 表添加 upstream_model 字段（Kiro 实际使用的模型）
+    if (!this._columnExists('request_logs', 'upstream_model')) {
+      this.db.exec(`ALTER TABLE request_logs ADD COLUMN upstream_model TEXT`);
+    }
+
+    // 兼容旧字段：如果存在 downstream_model，迁移到 upstream_model
+    if (this._columnExists('request_logs', 'downstream_model')) {
+      try {
+        this.db.exec(`UPDATE request_logs SET upstream_model = downstream_model WHERE upstream_model IS NULL`);
+      } catch (e) {
+        // 忽略迁移错误
+      }
     }
   }
 
@@ -175,7 +184,7 @@ export class DatabaseManager {
     const stmt = this.db.prepare(`
       INSERT INTO request_logs (
         timestamp, account_id, account_name, model,
-        input_tokens, output_tokens, duration_ms, success, error_message, api_key, stream, downstream_model
+        input_tokens, output_tokens, duration_ms, success, error_message, api_key, stream, upstream_model
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
@@ -191,7 +200,7 @@ export class DatabaseManager {
       log.errorMessage || null,
       log.apiKey || null,
       log.stream !== undefined ? (log.stream ? 1 : 0) : null,
-      log.downstreamModel || null
+      log.upstreamModel || null
     );
   }
 
@@ -204,7 +213,7 @@ export class DatabaseManager {
         rl.account_id as accountId,
         rl.account_name as accountName,
         rl.model,
-        rl.downstream_model as downstreamModel,
+        rl.upstream_model as upstreamModel,
         rl.input_tokens as inputTokens,
         rl.output_tokens as outputTokens,
         rl.duration_ms as durationMs,
