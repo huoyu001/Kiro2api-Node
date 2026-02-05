@@ -5,8 +5,8 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "start": "start.bat",
-    "dev": "dev.bat",
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
     "pm2:start": "cross-env PM2_NO_DAEMON= pm2 start ecosystem.config.cjs",
     "pm2:stop": "pm2 stop kiro2api-node",
     "pm2:restart": "pm2 restart kiro2api-node",

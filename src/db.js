@@ -55,6 +55,78 @@ export class DatabaseManager {
       CREATE INDEX IF NOT EXISTS idx_created_at ON request_logs(created_at);
     `);
 
+    // 账号表
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS accounts (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        credentials TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        request_count INTEGER DEFAULT 0,
+        error_count INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL,
+        last_used_at TEXT,
+        usage TEXT,
+        db_created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        db_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // 账号表索引
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_accounts_status ON accounts(status);
+      CREATE INDEX IF NOT EXISTS idx_accounts_last_used ON accounts(last_used_at);
+      CREATE INDEX IF NOT EXISTS idx_accounts_created ON accounts(created_at);
+    `);
+
+    // 设置表（单例模式）
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS settings (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        admin_key TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // API 密钥表
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS api_keys (
+        key TEXT PRIMARY KEY,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // 触发器：防止删除最后一个 API 密钥
+    this.db.exec(`
+      CREATE TRIGGER IF NOT EXISTS prevent_last_api_key_deletion
+      BEFORE DELETE ON api_keys
+      BEGIN
+        SELECT CASE
+          WHEN (SELECT COUNT(*) FROM api_keys) <= 1
+          THEN RAISE(ABORT, '无法删除最后一个 API 密钥')
+        END;
+      END;
+    `);
+
+    // 触发器：自动更新 accounts 表的 updated_at
+    this.db.exec(`
+      CREATE TRIGGER IF NOT EXISTS update_accounts_timestamp
+      AFTER UPDATE ON accounts
+      BEGIN
+        UPDATE accounts SET db_updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+      END;
+    `);
+
+    // 触发器：自动更新 settings 表的 updated_at
+    this.db.exec(`
+      CREATE TRIGGER IF NOT EXISTS update_settings_timestamp
+      AFTER UPDATE ON settings
+      BEGIN
+        UPDATE settings SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+      END;
+    `);
+
     console.log('✓ 数据库表结构创建完成');
   }
 
@@ -282,7 +354,7 @@ export class DatabaseManager {
   // Token 消耗趋势
   getTokenTrends(timeRange = '24h') {
     let timeCondition = '';
-    
+
     switch (timeRange) {
       case '24h':
         timeCondition = "datetime(timestamp) >= datetime('now', '-1 day')";
@@ -298,7 +370,7 @@ export class DatabaseManager {
     }
 
     const stmt = this.db.prepare(`
-      SELECT 
+      SELECT
         strftime('%Y-%m-%d %H:00:00', timestamp) as hour,
         SUM(input_tokens) as inputTokens,
         SUM(output_tokens) as outputTokens
@@ -309,6 +381,177 @@ export class DatabaseManager {
     `);
 
     return stmt.all();
+  }
+
+  // ============ 账号管理方法 ============
+
+  // 获取所有账号
+  getAllAccounts() {
+    const stmt = this.db.prepare(`
+      SELECT
+        id,
+        name,
+        credentials,
+        status,
+        request_count as requestCount,
+        error_count as errorCount,
+        created_at as createdAt,
+        last_used_at as lastUsedAt,
+        usage
+      FROM accounts
+      ORDER BY created_at DESC
+    `);
+    return stmt.all();
+  }
+
+  // 获取单个账号
+  getAccount(id) {
+    const stmt = this.db.prepare(`
+      SELECT
+        id,
+        name,
+        credentials,
+        status,
+        request_count as requestCount,
+        error_count as errorCount,
+        created_at as createdAt,
+        last_used_at as lastUsedAt,
+        usage
+      FROM accounts
+      WHERE id = ?
+    `);
+    return stmt.get(id);
+  }
+
+  // 插入账号
+  insertAccount(account) {
+    const stmt = this.db.prepare(`
+      INSERT INTO accounts (
+        id, name, credentials, status, request_count, error_count,
+        created_at, last_used_at, usage
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    stmt.run(
+      account.id,
+      account.name,
+      JSON.stringify(account.credentials),
+      account.status || 'active',
+      account.requestCount || 0,
+      account.errorCount || 0,
+      account.createdAt,
+      account.lastUsedAt || null,
+      account.usage ? JSON.stringify(account.usage) : null
+    );
+  }
+
+  // 更新账号
+  updateAccount(id, updates) {
+    const fields = [];
+    const values = [];
+
+    if (updates.status !== undefined) {
+      fields.push('status = ?');
+      values.push(updates.status);
+    }
+    if (updates.requestCount !== undefined) {
+      fields.push('request_count = ?');
+      values.push(updates.requestCount);
+    }
+    if (updates.errorCount !== undefined) {
+      fields.push('error_count = ?');
+      values.push(updates.errorCount);
+    }
+    if (updates.lastUsedAt !== undefined) {
+      fields.push('last_used_at = ?');
+      values.push(updates.lastUsedAt);
+    }
+    if (updates.usage !== undefined) {
+      fields.push('usage = ?');
+      values.push(updates.usage ? JSON.stringify(updates.usage) : null);
+    }
+
+    if (fields.length === 0) return;
+
+    values.push(id);
+    const stmt = this.db.prepare(`
+      UPDATE accounts
+      SET ${fields.join(', ')}
+      WHERE id = ?
+    `);
+    stmt.run(...values);
+  }
+
+  // 删除账号
+  deleteAccount(id) {
+    const stmt = this.db.prepare('DELETE FROM accounts WHERE id = ?');
+    const result = stmt.run(id);
+    return result.changes > 0;
+  }
+
+  // 批量删除账号
+  deleteAccounts(ids) {
+    const stmt = this.db.prepare(`
+      DELETE FROM accounts
+      WHERE id = ?
+    `);
+
+    const deleteMany = this.db.transaction((ids) => {
+      let deleted = 0;
+      for (const id of ids) {
+        const result = stmt.run(id);
+        deleted += result.changes;
+      }
+      return deleted;
+    });
+
+    return deleteMany(ids);
+  }
+
+  // ============ 设置管理方法 ============
+
+  // 获取设置
+  getSettings() {
+    const stmt = this.db.prepare('SELECT admin_key as adminKey FROM settings WHERE id = 1');
+    const row = stmt.get();
+
+    const keysStmt = this.db.prepare('SELECT key FROM api_keys ORDER BY created_at');
+    const keysRows = keysStmt.all();
+
+    return {
+      adminKey: row?.adminKey || null,
+      apiKeys: keysRows.map(r => r.key)
+    };
+  }
+
+  // 更新管理员密钥
+  updateAdminKey(adminKey) {
+    const stmt = this.db.prepare(`
+      INSERT INTO settings (id, admin_key)
+      VALUES (1, ?)
+      ON CONFLICT(id) DO UPDATE SET admin_key = excluded.admin_key
+    `);
+    stmt.run(adminKey);
+  }
+
+  // 添加 API 密钥
+  addApiKey(key) {
+    const stmt = this.db.prepare('INSERT OR IGNORE INTO api_keys (key) VALUES (?)');
+    const result = stmt.run(key);
+    return result.changes > 0;
+  }
+
+  // 删除 API 密钥
+  removeApiKey(key) {
+    const stmt = this.db.prepare('DELETE FROM api_keys WHERE key = ?');
+    const result = stmt.run(key);
+    return result.changes > 0;
+  }
+
+  // 列出所有 API 密钥
+  listApiKeys() {
+    const stmt = this.db.prepare('SELECT key FROM api_keys ORDER BY created_at');
+    return stmt.all().map(r => r.key);
   }
 
   // 关闭数据库连接

@@ -5,6 +5,8 @@ import { SettingsManager } from './settings.js';
 import { AccountPool } from './pool.js';
 import { DatabaseManager } from './db.js';
 import { migrateFromJson } from './migrations/001_init.js';
+import { migrateAccounts } from './migrations/002_accounts.js';
+import { migrateSettings } from './migrations/003_settings.js';
 import { createApiRouter } from './routes/api.js';
 import { createUiRouter } from './routes/ui.js';
 import { createAdminRouter } from './routes/admin.js';
@@ -45,14 +47,26 @@ async function startServer() {
     await dbManager.init();
     console.log('✓ 数据库初始化完成');
 
-    // 数据迁移
-    const migrationResult = await migrateFromJson(dbManager, config.dataDir);
-    if (!migrationResult.skipped) {
-      console.log(`✓ 数据迁移完成: ${migrationResult.migrated} 条记录`);
+    // 数据迁移：请求日志
+    const logMigrationResult = await migrateFromJson(dbManager, config.dataDir);
+    if (!logMigrationResult.skipped) {
+      console.log(`✓ 请求日志迁移完成: ${logMigrationResult.migrated} 条记录`);
     }
 
-    // 初始化设置管理器
-    const settingsManager = new SettingsManager(config.dataDir);
+    // 数据迁移：账号数据
+    const accountMigrationResult = await migrateAccounts(dbManager, config.dataDir);
+    if (!accountMigrationResult.skipped) {
+      console.log(`✓ 账号迁移完成: ${accountMigrationResult.migrated} 个账号`);
+    }
+
+    // 数据迁移：设置数据
+    const settingsMigrationResult = await migrateSettings(dbManager, config.dataDir);
+    if (!settingsMigrationResult.skipped) {
+      console.log(`✓ 设置迁移完成`);
+    }
+
+    // 初始化设置管理器（传入数据库管理器）
+    const settingsManager = new SettingsManager(config.dataDir, dbManager);
     await settingsManager.init(config.adminKey, config.apiKey);
     console.log('✓ 设置管理器初始化完成');
 

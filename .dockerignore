@@ -6,3 +6,10 @@ README.md
 UI.md
 data/accounts.json
 data/request_logs.json
+data/settings.json
+data/kiro.db
+data/kiro.db-shm
+data/kiro.db-wal
+data/*.backup.*
+.env
+logs/
