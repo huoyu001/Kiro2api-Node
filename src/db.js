@@ -216,27 +216,28 @@ export class DatabaseManager {
     return result.changes;
   }
 
-  // 按时间范围统计（用于图表）
+  // 按时间范围统计（用于图表，动态聚合粒度）
   getTimeSeriesStats(timeRange = '24h') {
     let timeCondition = '';
-    
+    let timeFormat = '';
+
     switch (timeRange) {
       case '24h':
         timeCondition = "datetime(timestamp) >= datetime('now', '-1 day')";
+        timeFormat = '%Y-%m-%d %H:00:00'; // 按小时
         break;
       case '7d':
         timeCondition = "datetime(timestamp) >= datetime('now', '-7 days')";
-        break;
-      case '30d':
-        timeCondition = "datetime(timestamp) >= datetime('now', '-30 days')";
+        timeFormat = '%Y-%m-%d'; // 按天
         break;
       default:
-        timeCondition = '1=1'; // 全部
+        timeCondition = "datetime(timestamp) >= datetime('now', '-1 day')";
+        timeFormat = '%Y-%m-%d %H:00:00';
     }
 
     const stmt = this.db.prepare(`
       SELECT 
-        strftime('%Y-%m-%d %H:00:00', timestamp) as hour,
+        strftime('${timeFormat}', timestamp) as hour,
         model,
         COUNT(*) as count,
         SUM(input_tokens) as inputTokens,
@@ -351,27 +352,28 @@ export class DatabaseManager {
     return stmt.get();
   }
 
-  // Token 消耗趋势
+  // Token 消耗趋势（动态聚合粒度）
   getTokenTrends(timeRange = '24h') {
     let timeCondition = '';
+    let timeFormat = '';
 
     switch (timeRange) {
       case '24h':
         timeCondition = "datetime(timestamp) >= datetime('now', '-1 day')";
+        timeFormat = '%Y-%m-%d %H:00:00'; // 按小时
         break;
       case '7d':
         timeCondition = "datetime(timestamp) >= datetime('now', '-7 days')";
-        break;
-      case '30d':
-        timeCondition = "datetime(timestamp) >= datetime('now', '-30 days')";
+        timeFormat = '%Y-%m-%d'; // 按天
         break;
       default:
-        timeCondition = '1=1';
+        timeCondition = "datetime(timestamp) >= datetime('now', '-1 day')";
+        timeFormat = '%Y-%m-%d %H:00:00';
     }
 
     const stmt = this.db.prepare(`
       SELECT
-        strftime('%Y-%m-%d %H:00:00', timestamp) as hour,
+        strftime('${timeFormat}', timestamp) as hour,
         SUM(input_tokens) as inputTokens,
         SUM(output_tokens) as outputTokens
       FROM request_logs
